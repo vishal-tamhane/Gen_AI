@@ -3,3 +3,5 @@ Lecture_1.o/node_modules/
 
 # Ignore environment variables file
 Lecture_1.o/.env
+Lecture_2/.env
+Lecture_2/node_modules/

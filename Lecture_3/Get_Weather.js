@@ -1,12 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import readlineSync from "readline-sync";
 
 dotenv.config();
 
-
 // ✅ Create main API client
-const genAI = new GoogleGenerativeAI({
+const ai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_API_KEY
 });
 
@@ -28,10 +27,10 @@ const SumDeclaration = {
   name: "SumGet",
   description: "Get the sum of two numbers",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
-      num1: { type: "number", description: "First number" },
-      num2: { type: "number", description: "Second number" }
+      num1: { type: Type.NUMBER, description: "First number" },
+      num2: { type: Type.NUMBER, description: "Second number" }
     },
     required: ["num1", "num2"]
   }
@@ -41,90 +40,51 @@ const PrimeDeclaration = {
   name: "isPrime",
   description: "Check whether a number is prime or not",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
-      num: { type: "number", description: "Number to check" }
+      num: { type: Type.NUMBER, description: "Number to check" }
     },
     required: ["num"]
   }
 };
 
-// ---------- Conversation History ----------
-let History = [];
-
 // ---------- Run Agent ----------
-async function runAgent(UserProblem) {
-  History.push({
-    role: "user",
-    parts: [{ text: UserProblem }]
+async function runAgent(userInput) {
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: `If the question can be answered without using the provided tools, answer directly. Otherwise, call the appropriate tool.\n\nUser: ${userInput}`,
+    config: {
+      tools: [{
+        functionDeclarations: [SumDeclaration, PrimeDeclaration]
+      }]
+    }
   });
 
-  try {
-    // 📌 Get model instance
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  if (response.functionCalls && response.functionCalls.length > 0) {
+    const { name, args } = response.functionCalls[0];
 
-    // First call — let Gemini decide if it needs a function
-    const response = await model.generateContent({
-      contents: History,
-      tools: [{ functionDeclarations: [SumDeclaration, PrimeDeclaration] }]
-    });
-
-    const parts = response.response?.candidates?.[0]?.content?.parts || [];
-    const functionCallPart = parts.find(p => p.functionCall);
-
-    if (functionCallPart) {
-      const { name, args: rawArgs } = functionCallPart.functionCall;
-      let args = rawArgs;
-      if (typeof args === "string") {
-        try { args = JSON.parse(args); } catch { args = {}; }
-      }
-
-      let result;
-      if (name === "SumGet") {
-        result = SumGet(args.num1, args.num2);
-      } else if (name === "isPrime") {
-        result = isPrime(args.num);
-      }
-
-      // Push function result
-      History.push({
-        role: "function",
-        parts: [{
-          functionResponse: {
-            name,
-            response: { result }
-          }
-        }]
-      });
-
-      // Ask for a human-readable explanation
-      History.push({
-        role: "user",
-        parts: [{ text: "Explain the result above in a user-friendly sentence." }]
-      });
-
-      const followUp = await model.generateContent({ contents: History });
-      const followUpParts = followUp.response?.candidates?.[0]?.content?.parts || [];
-      const textFollowUp = followUpParts.map(p => p.text).filter(Boolean).join("\n");
-
-      console.log(`AI: ${textFollowUp || result}`);
-
-    } else {
-      // Just return plain text if no function call
-      const textResponse = parts.map(p => p.text).filter(Boolean).join("\n");
-      console.log(`AI: ${textResponse}`);
+    let result;
+    if (name === "SumGet") {
+      result = SumGet(args.num1, args.num2);
+    } else if (name === "isPrime") {
+      result = isPrime(args.num);
     }
-  } catch (err) {
-    console.error("❌ API Call Failed:", err);
+
+    console.log(`Function: ${name}`);
+    console.log(`Args: ${JSON.stringify(args)}`);
+    console.log(`Result: ${result}`);
+  } else {
+    console.log("AI:", response.text);
   }
 }
 
 // ---------- Main Loop ----------
 async function main() {
+  console.log("🤖 AI Agent started! Type 'exit' to quit.\n");
   while (true) {
-    const userInput = readlineSync.question("\nYou: ");
+    const userInput = readlineSync.question("You: ");
     if (userInput.toLowerCase() === "exit") {
-      console.log("Ending chat. Goodbye!");
+      console.log("👋 Ending chat. Goodbye!");
       break;
     }
     await runAgent(userInput);

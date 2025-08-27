@@ -9,8 +9,8 @@ const platform = os.platform();
 const asyncExecute = promisify(exec);
 
 const History = [];
-const ai = new GoogleGenAI({ apiKey: "" });
-
+const ai = new GoogleGenAI({ apiKey: "AIzaSyAWEeOgNn3HAR7-qRV2QhzdFc8QF8v4u9Q" });
+// const ai = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
 //  Tool create karte hai, jo kisi bhi terminal/ shell command ko execute kar sakta hai
 
